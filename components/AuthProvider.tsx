@@ -73,48 +73,81 @@ export default function AuthProvider({
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
 
-    if (data) {
-      setProfile(data as Profile);
-
-      if (data.role === "doctor") {
-        const { data: doc } = await supabase
-          .from("doctors")
-          .select("id, full_name, specialty, is_approved, is_premium, is_verified, practice_name")
-          .eq("profile_id", userId)
-          .single();
-
-        setDoctorRecord(doc as DoctorRecord | null);
+      if (error) {
+        console.error("Error fetching profile:", error);
+        return;
       }
+
+      if (data) {
+        setProfile(data as Profile);
+
+        if (data.role === "doctor") {
+          const { data: doc, error: docError } = await supabase
+            .from("doctors")
+            .select(
+              "id, full_name, specialty, is_approved, is_premium, is_verified, practice_name"
+            )
+            .eq("profile_id", userId)
+            .single();
+
+          if (!docError && doc) {
+            setDoctorRecord(doc as DoctorRecord);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Unexpected error fetching profile:", err);
     }
   }, []);
 
   const refreshDoctorRecord = useCallback(async () => {
     if (!user) return;
-    const { data: doc } = await supabase
-      .from("doctors")
-      .select("id, full_name, specialty, is_approved, is_premium, is_verified, practice_name")
-      .eq("profile_id", user.id)
-      .single();
-    setDoctorRecord(doc as DoctorRecord | null);
+    try {
+      const { data: doc } = await supabase
+        .from("doctors")
+        .select(
+          "id, full_name, specialty, is_approved, is_premium, is_verified, practice_name"
+        )
+        .eq("profile_id", user.id)
+        .single();
+      setDoctorRecord(doc as DoctorRecord | null);
+    } catch (err) {
+      console.error("Error refreshing doctor record:", err);
+    }
   }, [user]);
 
   useEffect(() => {
-    const initAuth = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+    let mounted = true;
 
-      if (session?.user) {
-        setUser(session.user);
-        await fetchProfile(session.user.id);
+    const initAuth = async () => {
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error("Error getting session:", error);
+          if (mounted) setLoading(false);
+          return;
+        }
+
+        if (session?.user && mounted) {
+          setUser(session.user);
+          await fetchProfile(session.user.id);
+        }
+      } catch (err) {
+        console.error("Error initializing auth:", err);
+      } finally {
+        if (mounted) setLoading(false);
       }
-      setLoading(false);
     };
 
     initAuth();
@@ -122,26 +155,39 @@ export default function AuthProvider({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
+      if (!mounted) return;
+
+      if (event === "SIGNED_IN" && session?.user) {
         setUser(session.user);
         await fetchProfile(session.user.id);
-      } else {
+      } else if (event === "SIGNED_OUT") {
         setUser(null);
         setProfile(null);
         setDoctorRecord(null);
+      } else if (event === "TOKEN_REFRESHED" && session?.user) {
+        setUser(session.user);
       }
+
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [fetchProfile]);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error: error?.message || null };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      return { error: error?.message || null };
+    } catch (err) {
+      console.error("Sign in error:", err);
+      return { error: "Something went wrong. Please try again." };
+    }
   };
 
   const signUp = async (
@@ -150,18 +196,27 @@ export default function AuthProvider({
     fullName: string,
     role: string
   ) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName, role },
-      },
-    });
-    return { error: error?.message || null, userId: data.user?.id };
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName, role },
+        },
+      });
+      return { error: error?.message || null, userId: data.user?.id };
+    } catch (err) {
+      console.error("Sign up error:", err);
+      return { error: "Something went wrong. Please try again." };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Sign out error:", err);
+    }
     setUser(null);
     setProfile(null);
     setDoctorRecord(null);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, Loader2, AlertCircle, Plus } from "lucide-react";
@@ -8,27 +8,64 @@ import { useAuth } from "@/components/AuthProvider";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signIn } = useAuth();
+  const { user, profile, signIn, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // If already logged in, redirect
+  useEffect(() => {
+    if (!authLoading && user && profile) {
+      if (profile.role === "admin") {
+        router.push("/admin");
+      } else if (profile.role === "doctor") {
+        router.push("/dashboard");
+      } else {
+        router.push("/doctors");
+      }
+    }
+  }, [user, profile, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    const { error } = await signIn(email, password);
+    const { error: signInError } = await signIn(email, password);
 
-    if (error) {
-      setError(error);
+    if (signInError) {
+      setError(signInError);
       setLoading(false);
       return;
     }
 
-    router.push("/dashboard");
+    // The useEffect above will handle the redirect
+    // once the auth state updates
+    // But add a timeout fallback just in case
+    setTimeout(() => {
+      setLoading(false);
+      router.push("/dashboard");
+    }, 3000);
   };
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 text-teal-600 animate-spin" />
+      </div>
+    );
+  }
+
+  // Don't show login form if already logged in
+  if (user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 text-teal-600 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-12">
