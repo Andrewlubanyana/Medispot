@@ -85,10 +85,12 @@ const areas = [
   "Amanzimtoti",
   "Scottburgh",
   "Port Shepstone",
+  "Shelly Beach",
   "Margate",
   "Hillcrest",
   "Kloof",
   "Umdloti",
+  "Hibberdene",
 ];
 
 // ============================================
