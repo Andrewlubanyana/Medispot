@@ -20,6 +20,7 @@ import StarRating from "@/components/StarRating";
 import ReviewCard from "@/components/ReviewCard";
 import ReviewForm from "@/components/ReviewForm";
 import AvailabilityTable from "@/components/AvailabilityTable";
+import DoctorMap from "@/components/DoctorMap";
 import type { Doctor, Service, Review } from "@/lib/types";
 import type { Metadata } from "next";
 
@@ -64,13 +65,18 @@ async function getDoctor(id: string) {
   };
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
   const { id } = await params;
   const data = await getDoctor(id);
 
-  if (!data) return { title: "Doctor Not Found — MediSpot" };
+  if (!data) {
+    return { title: "Doctor Not Found — MediSpot" };
+  }
 
   const { doctor } = data;
+
   return {
     title: `${doctor.title} ${doctor.full_name} — ${doctor.specialty} | MediSpot`,
     description: `Book an appointment with ${doctor.title} ${doctor.full_name}, ${doctor.specialty} in ${doctor.area}, ${doctor.city}. ${doctor.bio?.slice(0, 120) || ""}`,
@@ -81,7 +87,9 @@ export default async function DoctorProfilePage({ params }: PageProps) {
   const { id } = await params;
   const data = await getDoctor(id);
 
-  if (!data) notFound();
+  if (!data) {
+    notFound();
+  }
 
   const { doctor, services, reviews, availability } = data;
 
@@ -115,7 +123,7 @@ export default async function DoctorProfilePage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Doctor Header */}
+      {/* ====== DOCTOR HEADER ====== */}
       <section className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col md:flex-row md:items-start gap-6">
@@ -141,7 +149,7 @@ export default async function DoctorProfilePage({ params }: PageProps) {
               )}
             </div>
 
-            {/* Info */}
+            {/* Doctor info */}
             <div className="flex-1">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                 <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
@@ -159,9 +167,14 @@ export default async function DoctorProfilePage({ params }: PageProps) {
               </p>
 
               <div className="mt-2">
-                <StarRating rating={averageRating} totalReviews={totalReviews} size="lg" />
+                <StarRating
+                  rating={averageRating}
+                  totalReviews={totalReviews}
+                  size="lg"
+                />
               </div>
 
+              {/* Quick details */}
               <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-600">
                 {doctor.practice_name && (
                   <div className="flex items-center gap-1.5">
@@ -179,6 +192,7 @@ export default async function DoctorProfilePage({ params }: PageProps) {
                 </div>
               </div>
 
+              {/* CTA buttons */}
               <div className="mt-6 flex flex-col sm:flex-row gap-3">
                 <Link
                   href={`/doctors/${doctor.id}/book`}
@@ -199,7 +213,7 @@ export default async function DoctorProfilePage({ params }: PageProps) {
               </div>
             </div>
 
-            {/* Fee card */}
+            {/* Consultation fee card */}
             {doctor.consultation_fee && (
               <div className="card p-5 text-center md:min-w-[180px]">
                 <p className="text-sm text-gray-500 mb-1">Consultation Fee</p>
@@ -213,10 +227,10 @@ export default async function DoctorProfilePage({ params }: PageProps) {
         </div>
       </section>
 
-      {/* Main Content */}
+      {/* ====== MAIN CONTENT ====== */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left column */}
+          {/* Left column (2/3 width on desktop) */}
           <div className="lg:col-span-2 space-y-8">
             {/* About */}
             {doctor.bio && (
@@ -265,7 +279,9 @@ export default async function DoctorProfilePage({ params }: PageProps) {
                       className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
                     >
                       <div>
-                        <p className="font-medium text-gray-900">{service.name}</p>
+                        <p className="font-medium text-gray-900">
+                          {service.name}
+                        </p>
                         {service.description && (
                           <p className="text-sm text-gray-500 mt-0.5">
                             {service.description}
@@ -312,8 +328,8 @@ export default async function DoctorProfilePage({ params }: PageProps) {
                 <div className="text-center py-8">
                   <Star className="h-10 w-10 text-gray-200 mx-auto mb-3" />
                   <p className="text-gray-500">
-                    No reviews yet. Be the first to review {doctor.title}{" "}
-                    {doctor.full_name}!
+                    No reviews yet. Be the first to review{" "}
+                    {doctor.title} {doctor.full_name}!
                   </p>
                 </div>
               )}
@@ -326,9 +342,9 @@ export default async function DoctorProfilePage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* Right sidebar */}
+          {/* Right column (1/3 width on desktop) — Sidebar */}
           <div className="space-y-6">
-            {/* Book card */}
+            {/* Book appointment card */}
             <div className="card p-6 border-teal-200 bg-teal-50/30">
               <h3 className="font-bold text-gray-900 text-lg mb-3">
                 Book an Appointment
@@ -356,23 +372,23 @@ export default async function DoctorProfilePage({ params }: PageProps) {
               </div>
             )}
 
-            {/* Contact */}
+            {/* Contact & Location with Google Maps */}
             <div className="card p-6">
               <h3 className="font-bold text-gray-900 text-lg mb-4">
                 Contact & Location
               </h3>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <MapPin className="h-5 w-5 text-teal-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {doctor.practice_name || "Practice Address"}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {doctor.practice_address}
-                    </p>
-                  </div>
-                </div>
+
+              {/* Google Map */}
+              <div className="mb-4">
+                <DoctorMap
+                  latitude={doctor.latitude}
+                  longitude={doctor.longitude}
+                  doctorName={`${doctor.title} ${doctor.full_name}`}
+                  practiceAddress={doctor.practice_address}
+                />
+              </div>
+
+              <div className="space-y-3 mt-4">
                 {doctor.phone && (
                   <div className="flex items-center gap-3">
                     <Phone className="h-5 w-5 text-teal-600 flex-shrink-0" />
@@ -384,6 +400,7 @@ export default async function DoctorProfilePage({ params }: PageProps) {
                     </a>
                   </div>
                 )}
+
                 {doctor.email && (
                   <div className="flex items-center gap-3">
                     <Mail className="h-5 w-5 text-teal-600 flex-shrink-0" />
@@ -395,6 +412,7 @@ export default async function DoctorProfilePage({ params }: PageProps) {
                     </a>
                   </div>
                 )}
+
                 {doctor.website && (
                   <div className="flex items-center gap-3">
                     <Globe className="h-5 w-5 text-teal-600 flex-shrink-0" />
@@ -411,9 +429,11 @@ export default async function DoctorProfilePage({ params }: PageProps) {
               </div>
             </div>
 
-            {/* Quick links */}
+            {/* Quick Links */}
             <div className="card p-6">
-              <h3 className="font-bold text-gray-900 text-lg mb-3">Quick Links</h3>
+              <h3 className="font-bold text-gray-900 text-lg mb-3">
+                Quick Links
+              </h3>
               <div className="space-y-2">
                 <Link
                   href={`/doctors?specialty=${doctor.specialty.toLowerCase().replace(/\s+/g, "-")}`}

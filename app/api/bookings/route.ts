@@ -1,5 +1,9 @@
 import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  sendBookingConfirmation,
+  sendDoctorNewBookingNotification,
+} from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,7 +20,13 @@ export async function POST(request: NextRequest) {
       notes,
     } = body;
 
-    if (!doctor_id || !patient_name || !patient_phone || !booking_date || !booking_time) {
+    if (
+      !doctor_id ||
+      !patient_name ||
+      !patient_phone ||
+      !booking_date ||
+      !booking_time
+    ) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -33,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     const { data: doctor, error: doctorError } = await supabase
       .from("doctors")
-      .select("id, full_name, title")
+      .select("*")
       .eq("id", doctor_id)
       .single();
 
@@ -52,7 +62,10 @@ export async function POST(request: NextRequest) {
 
     if (existingBooking) {
       return NextResponse.json(
-        { error: "This time slot has just been booked. Please choose a different time." },
+        {
+          error:
+            "This time slot has just been booked. Please choose a different time.",
+        },
         { status: 409 }
       );
     }
@@ -79,6 +92,51 @@ export async function POST(request: NextRequest) {
         { error: "Failed to create booking. Please try again." },
         { status: 500 }
       );
+    }
+
+    // Format date and time for emails
+    const formattedDate = new Date(
+      booking_date + "T00:00:00"
+    ).toLocaleDateString("en-ZA", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    const [h, m] = booking_time.split(":");
+    const hour = parseInt(h);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    const formattedTime = `${displayHour}:${m} ${ampm}`;
+
+    // Send confirmation email to patient (if email provided)
+    if (patient_email) {
+      await sendBookingConfirmation({
+        to: patient_email,
+        patientName: patient_name,
+        doctorName: `${doctor.title} ${doctor.full_name}`,
+        doctorSpecialty: doctor.specialty,
+        bookingDate: formattedDate,
+        bookingTime: formattedTime,
+        practiceAddress: doctor.practice_address,
+        practiceName: doctor.practice_name || undefined,
+        consultationFee: doctor.consultation_fee || undefined,
+      });
+    }
+
+    // Send notification to doctor (if email exists)
+    if (doctor.email) {
+      await sendDoctorNewBookingNotification({
+        to: doctor.email,
+        doctorName: doctor.full_name,
+        patientName: patient_name,
+        patientPhone: phoneClean,
+        patientEmail: patient_email || undefined,
+        bookingDate: formattedDate,
+        bookingTime: formattedTime,
+        notes: notes || undefined,
+      });
     }
 
     return NextResponse.json({
