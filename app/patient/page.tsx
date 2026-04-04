@@ -13,18 +13,20 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+interface DoctorInfo {
+  id: string;
+  title: string;
+  full_name: string;
+  specialty: string;
+  area: string;
+}
+
 interface UpcomingBooking {
   id: string;
   booking_date: string;
   booking_time: string;
   status: string;
-  doctors: {
-    title: string;
-    full_name: string;
-    specialty: string;
-    area: string;
-    id: string;
-  };
+  doctors: DoctorInfo | null;
 }
 
 export default function PatientDashboard() {
@@ -60,7 +62,18 @@ export default function PatientDashboard() {
         .select("*", { count: "exact", head: true })
         .eq("patient_id", user.id);
 
-      setBookings((upcoming || []) as UpcomingBooking[]);
+      // Transform the data to handle the doctors relation properly
+      const transformedBookings: UpcomingBooking[] = (upcoming || []).map((booking) => ({
+        id: booking.id,
+        booking_date: booking.booking_date,
+        booking_time: booking.booking_time,
+        status: booking.status,
+        doctors: Array.isArray(booking.doctors) 
+          ? booking.doctors[0] || null 
+          : booking.doctors,
+      }));
+
+      setBookings(transformedBookings);
       setTotalBookings(bookingCount || 0);
       setTotalReviews(reviewCount || 0);
       setLoading(false);
