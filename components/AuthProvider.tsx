@@ -72,6 +72,12 @@ export default function AuthProvider({
   const [doctorRecord, setDoctorRecord] = useState<DoctorRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const clearAuth = useCallback(() => {
+    setUser(null);
+    setProfile(null);
+    setDoctorRecord(null);
+  }, []);
+
   const fetchProfile = useCallback(async (userId: string) => {
     try {
       const { data, error } = await supabase
@@ -135,6 +141,15 @@ export default function AuthProvider({
 
         if (error) {
           console.error("Error getting session:", error);
+          
+          // If session is invalid, sign out cleanly
+          if (error.message?.includes("refresh_token") || 
+              error.message?.includes("invalid") ||
+              error.message?.includes("expired")) {
+            await supabase.auth.signOut();
+            if (mounted) clearAuth();
+          }
+          
           if (mounted) setLoading(false);
           return;
         }
@@ -145,6 +160,13 @@ export default function AuthProvider({
         }
       } catch (err) {
         console.error("Error initializing auth:", err);
+        // Clear any broken session
+        try {
+          await supabase.auth.signOut();
+        } catch {
+          // Ignore sign out errors
+        }
+        if (mounted) clearAuth();
       } finally {
         if (mounted) setLoading(false);
       }
@@ -161,11 +183,12 @@ export default function AuthProvider({
         setUser(session.user);
         await fetchProfile(session.user.id);
       } else if (event === "SIGNED_OUT") {
-        setUser(null);
-        setProfile(null);
-        setDoctorRecord(null);
+        clearAuth();
       } else if (event === "TOKEN_REFRESHED" && session?.user) {
         setUser(session.user);
+      } else if (event === "TOKEN_REFRESHED" && !session) {
+        // Token refresh failed — session is dead
+        clearAuth();
       }
 
       setLoading(false);
@@ -175,7 +198,7 @@ export default function AuthProvider({
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [fetchProfile, clearAuth]);
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -217,9 +240,7 @@ export default function AuthProvider({
     } catch (err) {
       console.error("Sign out error:", err);
     }
-    setUser(null);
-    setProfile(null);
-    setDoctorRecord(null);
+    clearAuth();
   };
 
   return (
