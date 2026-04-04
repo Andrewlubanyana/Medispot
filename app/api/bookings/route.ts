@@ -7,6 +7,7 @@ export async function POST(request: NextRequest) {
 
     const {
       doctor_id,
+      patient_id,
       patient_name,
       patient_phone,
       patient_email,
@@ -15,24 +16,13 @@ export async function POST(request: NextRequest) {
       notes,
     } = body;
 
-    // Validation
-    if (
-      !doctor_id ||
-      !patient_name ||
-      !patient_phone ||
-      !booking_date ||
-      !booking_time
-    ) {
+    if (!doctor_id || !patient_name || !patient_phone || !booking_date || !booking_time) {
       return NextResponse.json(
-        {
-          error:
-            "Missing required fields: doctor_id, patient_name, patient_phone, booking_date, booking_time",
-        },
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    // Validate phone (basic SA phone format)
     const phoneClean = patient_phone.replace(/\s+/g, "");
     if (phoneClean.length < 10) {
       return NextResponse.json(
@@ -41,7 +31,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if doctor exists
     const { data: doctor, error: doctorError } = await supabase
       .from("doctors")
       .select("id, full_name, title")
@@ -49,13 +38,9 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (doctorError || !doctor) {
-      return NextResponse.json(
-        { error: "Doctor not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Doctor not found" }, { status: 404 });
     }
 
-    // Check if the slot is still available (prevent double booking)
     const { data: existingBooking } = await supabase
       .from("bookings")
       .select("id")
@@ -67,19 +52,16 @@ export async function POST(request: NextRequest) {
 
     if (existingBooking) {
       return NextResponse.json(
-        {
-          error:
-            "This time slot has just been booked by someone else. Please choose a different time.",
-        },
+        { error: "This time slot has just been booked. Please choose a different time." },
         { status: 409 }
       );
     }
 
-    // Create the booking
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
       .insert({
         doctor_id,
+        patient_id: patient_id || null,
         patient_name: patient_name.trim(),
         patient_phone: phoneClean,
         patient_email: patient_email?.trim() || null,

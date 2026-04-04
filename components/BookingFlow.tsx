@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import StarRating from "@/components/StarRating";
+import { useAuth } from "@/components/AuthProvider";
 
 // ============================================
 // TYPES
@@ -99,8 +100,18 @@ function toDateString(date: Date): string {
 
 const SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 // ============================================
@@ -108,6 +119,8 @@ const MONTH_NAMES = [
 // ============================================
 
 export default function BookingFlow({ doctor }: { doctor: DoctorInfo }) {
+  const { user, profile } = useAuth();
+
   const [step, setStep] = useState<Step>("date");
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDate, setSelectedDate] = useState<string>("");
@@ -116,16 +129,31 @@ export default function BookingFlow({ doctor }: { doctor: DoctorInfo }) {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsError, setSlotsError] = useState("");
 
-  // Form fields
-  const [patientName, setPatientName] = useState("");
-  const [patientPhone, setPatientPhone] = useState("");
-  const [patientEmail, setPatientEmail] = useState("");
+  // Form fields - auto-fill from profile if logged in
+  const [patientName, setPatientName] = useState(profile?.full_name || "");
+  const [patientPhone, setPatientPhone] = useState(profile?.phone || "");
+  const [patientEmail, setPatientEmail] = useState(user?.email || "");
   const [notes, setNotes] = useState("");
 
   // Submission
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [bookingResult, setBookingResult] = useState<BookingResult | null>(null);
+  const [bookingResult, setBookingResult] = useState<BookingResult | null>(
+    null
+  );
+
+  // Update form fields if user logs in while on booking page
+  useEffect(() => {
+    if (profile?.full_name && !patientName) {
+      setPatientName(profile.full_name);
+    }
+    if (profile?.phone && !patientPhone) {
+      setPatientPhone(profile.phone);
+    }
+    if (user?.email && !patientEmail) {
+      setPatientEmail(user.email);
+    }
+  }, [profile, user, patientName, patientPhone, patientEmail]);
 
   // Generate the date grid
   const today = new Date();
@@ -164,9 +192,7 @@ export default function BookingFlow({ doctor }: { doctor: DoctorInfo }) {
         setSlots(data.slots);
 
         if (data.slots.length === 0) {
-          setSlotsError(
-            data.message || "No available slots on this day"
-          );
+          setSlotsError(data.message || "No available slots on this day");
         }
       } catch {
         setSlotsError("Something went wrong. Please try again.");
@@ -208,6 +234,7 @@ export default function BookingFlow({ doctor }: { doctor: DoctorInfo }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           doctor_id: doctor.id,
+          patient_id: user?.id || null,
           patient_name: patientName,
           patient_phone: patientPhone,
           patient_email: patientEmail,
@@ -288,7 +315,9 @@ export default function BookingFlow({ doctor }: { doctor: DoctorInfo }) {
         {(["date", "time", "details", "confirmed"] as Step[]).map(
           (s, index) => {
             const stepLabels = ["Date", "Time", "Details", "Confirmed"];
-            const stepIndex = ["date", "time", "details", "confirmed"].indexOf(step);
+            const stepIndex = ["date", "time", "details", "confirmed"].indexOf(
+              step
+            );
             const thisIndex = index;
             const isActive = thisIndex === stepIndex;
             const isComplete = thisIndex < stepIndex;
@@ -545,6 +574,16 @@ export default function BookingFlow({ doctor }: { doctor: DoctorInfo }) {
             </div>
           </div>
 
+          {/* Logged in notice */}
+          {user && (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-4 flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-blue-600 flex-shrink-0" />
+              <p className="text-sm text-blue-700">
+                Logged in as <span className="font-medium">{profile?.full_name || user.email}</span>. This booking will be saved to your account.
+              </p>
+            </div>
+          )}
+
           {/* Patient form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Full name */}
@@ -747,9 +786,15 @@ export default function BookingFlow({ doctor }: { doctor: DoctorInfo }) {
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href={`/doctors/${doctor.id}`} className="btn-secondary">
-              Back to Doctor Profile
-            </Link>
+            {user ? (
+              <Link href="/patient/bookings" className="btn-secondary">
+                View My Bookings
+              </Link>
+            ) : (
+              <Link href={`/doctors/${doctor.id}`} className="btn-secondary">
+                Back to Doctor Profile
+              </Link>
+            )}
             <Link href="/doctors" className="btn-primary">
               Find More Doctors
             </Link>

@@ -3,7 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Menu, X, Plus, LayoutDashboard, LogOut, ShieldAlert } from "lucide-react";
+import {
+  Menu,
+  X,
+  Plus,
+  LayoutDashboard,
+  LogOut,
+  ShieldAlert,
+  User,
+} from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 
 export default function Navbar() {
@@ -19,6 +27,7 @@ export default function Navbar() {
 
   const isDoctor = profile?.role === "doctor";
   const isAdmin = profile?.role === "admin";
+  const isPatient = profile?.role === "patient";
 
   return (
     <nav className="bg-white border-b border-gray-100 sticky top-0 z-50">
@@ -34,7 +43,7 @@ export default function Navbar() {
             </span>
           </Link>
 
-          {/* Desktop navigation */}
+          {/* Desktop */}
           <div className="hidden md:flex items-center gap-6">
             <Link
               href="/doctors"
@@ -60,6 +69,16 @@ export default function Navbar() {
                   >
                     <LayoutDashboard className="h-4 w-4" />
                     Dashboard
+                  </Link>
+                )}
+
+                {isPatient && (
+                  <Link
+                    href="/patient"
+                    className="text-gray-600 hover:text-teal-600 font-medium transition-colors flex items-center gap-1.5"
+                  >
+                    <User className="h-4 w-4" />
+                    My Account
                   </Link>
                 )}
 
@@ -101,17 +120,13 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile menu button */}
+          {/* Mobile button */}
           <button
             onClick={() => setIsOpen(!isOpen)}
             className="md:hidden p-2 text-gray-600 hover:text-gray-900"
             aria-label="Toggle menu"
           >
-            {isOpen ? (
-              <X className="h-6 w-6" />
-            ) : (
-              <Menu className="h-6 w-6" />
-            )}
+            {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
         </div>
       </div>
@@ -144,6 +159,16 @@ export default function Navbar() {
                     className="block py-2 text-gray-600 hover:text-teal-600 font-medium"
                   >
                     Dashboard
+                  </Link>
+                )}
+
+                {isPatient && (
+                  <Link
+                    href="/patient"
+                    onClick={() => setIsOpen(false)}
+                    className="block py-2 text-gray-600 hover:text-teal-600 font-medium"
+                  >
+                    My Account
                   </Link>
                 )}
 
