@@ -2,56 +2,66 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Loader2, MapPin } from "lucide-react";
 
 export default function GeocodeDoctorsPage() {
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState<string[]>([]);
-  
-  const geocodeAll = async () => {
-    setProcessing(true);
-    setResults(["Starting geocoding process..."]);
-    
-    console.log("1. Hitting Supabase...");
-
-    try {
-      const { data: doctors, error } = await supabase
-        .from("doctors")
-        .select("id, full_name, practice_address, area")
-        .is("latitude", null);
-        
-      console.log("2. Supabase finished! Doctors found:", doctors?.length);
-      // ... rest of the code
 
   const geocodeAll = async () => {
     setProcessing(true);
-    setResults(["Starting geocoding process..."]);
+    setResults(["[System] Starting geocoding process..."]);
+    setResults((prev) => [...prev, "[System] 1. Requesting doctors from Supabase..."]);
 
     try {
-      // 1. Explicitly check for an error on the initial fetch
-      const { data: doctors, error } = await supabase
+      // 1. Force a timeout on the DB call just in case Supabase is deadlocking
+      const fetchPromise = supabase
         .from("doctors")
         .select("id, full_name, practice_address, area")
         .is("latitude", null);
+
+      // 15-second timeout to catch silent database hangs
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error("Database connection timed out! Check your RLS policies or internet connection.")
+            ),
+          15000
+        )
+      );
+
+      // Race the DB fetch against the 15-second timer
+      const { data: doctors, error } = (await Promise.race([
+        fetchPromise,
+        timeoutPromise,
+      ])) as any;
 
       if (error) {
         throw new Error(`Database error: ${error.message}`);
       }
 
-      if (!doctors || doctors.length === 0) {
-        setResults((prev) => [...prev, "No doctors need geocoding."]);
-        return; // The 'finally' block will still run and turn off the spinner
-      }
+      setResults((prev) => [
+        ...prev,
+        `[System] 2. Supabase responded! Found ${doctors?.length || 0} doctors.`,
+      ]);
 
-      setResults((prev) => [...prev, `Found ${doctors.length} doctors to geocode.`]);
+      if (!doctors || doctors.length === 0) {
+        setResults((prev) => [...prev, "[System] No doctors need geocoding right now."]);
+        return;
+      }
 
       for (const doctor of doctors) {
         try {
           const address = `${doctor.practice_address}, ${doctor.area}, Durban, South Africa`;
+          setResults((prev) => [
+            ...prev,
+            `[API] Fetching coordinates for ${doctor.full_name}...`,
+          ]);
 
-          // 2. Add an AbortController to prevent the fetch from hanging forever
+          // 2. AbortController to prevent the Next.js API route from hanging forever
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s API timeout
 
           const geocodeResponse = await fetch("/api/geocode", {
             method: "POST",
@@ -60,57 +70,73 @@ export default function GeocodeDoctorsPage() {
             signal: controller.signal,
           });
 
-          clearTimeout(timeoutId); // Clear timeout if fetch succeeds quickly
+          clearTimeout(timeoutId);
 
           if (geocodeResponse.ok) {
             const { latitude, longitude } = await geocodeResponse.json();
 
-            // 3. Catch errors on the update step too
+            // Check for errors during the update
             const { error: updateError } = await supabase
               .from("doctors")
               .update({ latitude, longitude })
               .eq("id", doctor.id);
 
             if (updateError) {
-              throw new Error("Update failed");
+              throw new Error("Failed to save coordinates to database");
             }
 
             setResults((prev) => [
               ...prev,
-              `✓ ${doctor.full_name}: ${latitude}, ${longitude}`,
+              `✓ Success: ${doctor.full_name} (${latitude}, ${longitude})`,
             ]);
           } else {
-            setResults((prev) => [...prev, `✗ ${doctor.full_name}: API Failed`]);
+            // Check if it's a specific error from our API route
+            const errorData = await geocodeResponse.json().catch(() => ({}));
+            setResults((prev) => [
+              ...prev,
+              `✗ Failed: ${doctor.full_name} - ${
+                errorData.error || geocodeResponse.statusText
+              }`,
+            ]);
           }
         } catch (err: any) {
-          // If it aborts due to timeout, it throws a specific error name
-          const errorMessage = err.name === 'AbortError' ? 'Timeout' : 'Error';
-          setResults((prev) => [...prev, `✗ ${doctor.full_name}: ${errorMessage}`]);
+          const errorMessage =
+            err.name === "AbortError"
+              ? "API Request Timed Out (Next.js route deadlock)"
+              : err.message;
+          setResults((prev) => [
+            ...prev,
+            `✗ Error: ${doctor.full_name} - ${errorMessage}`,
+          ]);
         }
 
-        // Rate limit: wait 200ms between requests so we don't spam the API
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        // Rate limit: wait 300ms between requests so Google Maps doesn't block us
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
 
-      setResults((prev) => [...prev, "Geocoding complete!"]);
-      
+      setResults((prev) => [...prev, "[System] Geocoding process finished!"]);
     } catch (err: any) {
-      // Catch any fatal errors (like network failure on the initial load)
-      setResults((prev) => [...prev, `Critical Error: ${err.message}`]);
+      // Catch any fatal errors (like network failure or RLS blocking)
+      setResults((prev) => [...prev, `[FATAL ERROR]: ${err.message}`]);
     } finally {
-      // 4. GUARANTEE the spinner turns off, whether the whole process succeeds or crashes
+      // GUARANTEE the spinner turns off
       setProcessing(false);
     }
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">
-        Geocode All Doctors
-      </h1>
-      <p className="text-gray-600 mb-6">
-        This will add latitude/longitude coordinates to all doctors that don't
-        have them yet, enabling Google Maps on their profiles.
+    <div className="p-6 md:p-8 max-w-4xl mx-auto">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-10 h-10 bg-teal-100 text-teal-700 rounded-xl flex items-center justify-center">
+          <MapPin className="h-5 w-5" />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900">Geocode Doctors</h1>
+      </div>
+
+      <p className="text-gray-600 mb-8 max-w-2xl">
+        This utility scans the database for doctors missing geographic coordinates and
+        uses the Google Maps API to convert their physical addresses into
+        Latitude/Longitude points.
       </p>
 
       <button
@@ -121,23 +147,43 @@ export default function GeocodeDoctorsPage() {
         {processing ? (
           <>
             <Loader2 className="h-5 w-5 animate-spin" />
-            Processing...
+            Processing Database...
           </>
         ) : (
-          "Start Geocoding"
+          "Start Geocoding Scan"
         )}
       </button>
 
+      {/* Terminal-style Diagnostic Window */}
       {results.length > 0 && (
-        <div className="mt-6 bg-gray-50 rounded-xl p-4 max-h-96 overflow-y-auto font-mono text-sm">
-          {results.map((result, i) => (
-            <div 
-              key={i} 
-              className={`py-1 ${result.includes('✗') || result.includes('Error') ? 'text-red-600' : 'text-gray-700'}`}
-            >
-              {result}
-            </div>
-          ))}
+        <div className="mt-8 bg-gray-900 rounded-xl p-5 shadow-inner">
+          <div className="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
+            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+              System Log
+            </h3>
+            {processing && <Loader2 className="h-4 w-4 text-teal-400 animate-spin" />}
+          </div>
+          
+          <div className="max-h-96 overflow-y-auto font-mono text-sm space-y-1.5 custom-scrollbar">
+            {results.map((result, i) => {
+              // Color coding the terminal outputs
+              let colorClass = "text-gray-300"; 
+              if (result.includes("✓ Success")) colorClass = "text-green-400";
+              else if (result.includes("✗ Failed") || result.includes("✗ Error"))
+                colorClass = "text-red-400";
+              else if (result.includes("[System]"))
+                colorClass = "text-blue-400 font-semibold";
+              else if (result.includes("[FATAL"))
+                colorClass = "text-red-500 font-bold bg-red-500/10 p-1 rounded";
+              else if (result.includes("[API]")) colorClass = "text-yellow-300";
+
+              return (
+                <div key={i} className={`${colorClass} break-all`}>
+                  {result}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
