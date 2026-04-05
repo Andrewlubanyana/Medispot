@@ -1,194 +1,196 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
-import {
-  Star,
-  Loader2,
-  CheckCircle,
-  XCircle,
-  Trash2,
-  Eye,
-  EyeOff,
-} from "lucide-react";
+import { Star, MessageSquare, Loader2, Send, CheckCircle } from "lucide-react";
 
-interface AdminReview {
+interface Review {
   id: string;
   patient_name: string;
   rating: number;
-  comment: string | null;
-  is_approved: boolean;
+  comment: string;
   created_at: string;
-  doctors: {
-    title: string;
-    full_name: string;
-    specialty: string;
-  };
+  doctor_response: string | null;
+  response_date: string | null;
 }
 
-export default function AdminReviewsPage() {
-  const [reviews, setReviews] = useState<AdminReview[]>([]);
-  const [filter, setFilter] = useState("all");
+export default function ReviewsPage() {
+  const { doctorRecord } = useAuth();
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Reply State
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const fetchReviews = async () => {
+    if (!doctorRecord?.id) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("reviews")
+        .select("*")
+        .eq("doctor_id", doctorRecord.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setReviews((data || []) as Review[]);
+    } catch (err) {
+      console.error("Error fetching reviews:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchReviews();
-  }, [filter]);
+  }, [doctorRecord?.id]);
 
-  const fetchReviews = async () => {
-    setLoading(true);
+  const handleReply = async (reviewId: string) => {
+    if (!replyText.trim()) return;
+    setSubmitting(true);
 
-    let query = supabase
-      .from("reviews")
-      .select("*, doctors(title, full_name, specialty)")
-      .order("created_at", { ascending: false })
-      .limit(100);
+    try {
+      const { error } = await supabase
+        .from("reviews")
+        .update({
+          doctor_response: replyText.trim(),
+          response_date: new Date().toISOString(),
+        })
+        .eq("id", reviewId);
 
-    if (filter === "approved") {
-      query = query.eq("is_approved", true);
-    } else if (filter === "hidden") {
-      query = query.eq("is_approved", false);
+      if (error) throw error;
+
+      // Reset state and refresh
+      setReplyingTo(null);
+      setReplyText("");
+      fetchReviews();
+    } catch (err) {
+      console.error("Error submitting reply:", err);
+      alert("Failed to submit reply. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
-
-    const { data } = await query;
-    setReviews((data || []) as AdminReview[]);
-    setLoading(false);
   };
 
-  const toggleApproval = async (id: string, currentlyApproved: boolean) => {
-    await supabase
-      .from("reviews")
-      .update({ is_approved: !currentlyApproved })
-      .eq("id", id);
-    await fetchReviews();
-  };
+  // Calculate Average Rating
+  const averageRating = reviews.length > 0 
+    ? (reviews.reduce((acc, curr) => acc + curr.rating, 0) / reviews.length).toFixed(1)
+    : "0.0";
 
-  const deleteReview = async (id: string) => {
-    if (!confirm("Are you sure you want to permanently delete this review?"))
-      return;
-    await supabase.from("reviews").delete().eq("id", id);
-    await fetchReviews();
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 text-teal-600 animate-spin" />
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 md:p-8 max-w-6xl">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">
-        Moderate Reviews
-      </h1>
+    <div className="p-6 md:p-8 max-w-4xl">
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Patient Reviews</h1>
 
-      {/* Filter tabs */}
-      <div className="flex gap-2 mb-6 flex-wrap">
-        {[
-          { key: "all", label: "All" },
-          { key: "approved", label: "Approved" },
-          { key: "hidden", label: "Hidden" },
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setFilter(tab.key)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              filter === tab.key
-                ? "bg-teal-600 text-white"
-                : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Summary Card */}
+      <div className="card p-6 mb-8 flex items-center gap-6 bg-teal-50/50 border-teal-100">
+        <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl shadow-sm min-w-[120px]">
+          <span className="text-4xl font-bold text-gray-900">{averageRating}</span>
+          <div className="flex text-amber-400 mt-1">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <Star key={star} className={`h-4 w-4 ${star <= parseFloat(averageRating) ? "fill-amber-400" : "text-gray-300"}`} />
+            ))}
+          </div>
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Overall Rating</h2>
+          <p className="text-gray-600">Based on {reviews.length} patient review{reviews.length !== 1 && 's'}</p>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-40">
-          <Loader2 className="h-8 w-8 text-teal-600 animate-spin" />
-        </div>
-      ) : reviews.length === 0 ? (
+      {/* Reviews List */}
+      {reviews.length === 0 ? (
         <div className="card p-8 text-center">
-          <Star className="h-10 w-10 text-gray-200 mx-auto mb-3" />
-          <p className="text-gray-500">No reviews found</p>
+          <MessageSquare className="h-10 w-10 text-gray-200 mx-auto mb-3" />
+          <p className="text-gray-500">You don't have any reviews yet.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-6">
           {reviews.map((review) => (
-            <div
-              key={review.id}
-              className={`card p-4 ${
-                !review.is_approved ? "opacity-60 border-l-4 border-l-red-300" : ""
-              }`}
-            >
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-semibold text-gray-900">
-                      {review.patient_name}
-                    </p>
-                    <div className="flex items-center">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Star
-                          key={star}
-                          className={`h-3.5 w-3.5 ${
-                            star <= review.rating
-                              ? "text-amber-400 fill-amber-400"
-                              : "text-gray-200 fill-gray-200"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    {!review.is_approved && (
-                      <span className="text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded-full font-medium">
-                        Hidden
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-teal-600">
-                    For: {review.doctors?.title} {review.doctors?.full_name} ·{" "}
-                    {review.doctors?.specialty}
-                  </p>
-                  {review.comment && (
-                    <p className="text-sm text-gray-700 mt-2 bg-gray-50 rounded-lg p-3">
-                      &ldquo;{review.comment}&rdquo;
-                    </p>
-                  )}
-                  <p className="text-xs text-gray-400 mt-2">
+            <div key={review.id} className="card p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="font-bold text-gray-900">{review.patient_name}</h3>
+                  <p className="text-sm text-gray-500">
                     {new Date(review.created_at).toLocaleDateString("en-ZA", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
+                      day: "numeric", month: "long", year: "numeric"
                     })}
                   </p>
                 </div>
-
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={() =>
-                      toggleApproval(review.id, review.is_approved)
-                    }
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      review.is_approved
-                        ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                        : "bg-green-50 text-green-700 hover:bg-green-100"
-                    }`}
-                  >
-                    {review.is_approved ? (
-                      <>
-                        <EyeOff className="h-4 w-4" />
-                        Hide
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="h-4 w-4" />
-                        Approve
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => deleteReview(review.id)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </button>
+                <div className="flex text-amber-400">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star key={star} className={`h-4 w-4 ${star <= review.rating ? "fill-amber-400" : "text-gray-300"}`} />
+                  ))}
                 </div>
               </div>
+
+              <p className="text-gray-700 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                "{review.comment}"
+              </p>
+
+              {/* Doctor Response Section */}
+              {review.doctor_response ? (
+                <div className="ml-6 pl-4 border-l-2 border-teal-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <CheckCircle className="h-4 w-4 text-teal-600" />
+                    <span className="font-semibold text-teal-800">Your Response</span>
+                    <span className="text-xs text-gray-400 ml-2">
+                      {new Date(review.response_date!).toLocaleDateString("en-ZA")}
+                    </span>
+                  </div>
+                  <p className="text-gray-600 text-sm">{review.doctor_response}</p>
+                </div>
+              ) : replyingTo === review.id ? (
+                <div className="ml-6 flex items-end gap-3 animate-in fade-in slide-in-from-top-2">
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-teal-700 mb-1">Draft Response</label>
+                    <textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Thank the patient for their feedback..."
+                      className="w-full px-4 py-2 rounded-xl border border-teal-200 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm resize-none"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => handleReply(review.id)}
+                      disabled={submitting || !replyText.trim()}
+                      className="bg-teal-600 text-white p-2 rounded-lg hover:bg-teal-700 transition disabled:opacity-50 flex items-center justify-center h-[38px] w-[38px]"
+                    >
+                      {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </button>
+                    <button
+                      onClick={() => { setReplyingTo(null); setReplyText(""); }}
+                      className="text-xs text-gray-500 hover:text-gray-800 font-medium"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setReplyingTo(review.id)}
+                  className="ml-6 text-sm font-medium text-teal-600 hover:text-teal-700 flex items-center gap-1.5"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  Reply to patient
+                </button>
+              )}
             </div>
           ))}
         </div>
