@@ -38,34 +38,49 @@ export default function AvailabilityPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!doctorRecord) return;
-
-    const fetch = async () => {
-      const { data } = await supabase
-        .from("availability")
-        .select("*")
-        .eq("doctor_id", doctorRecord.id);
-
-      if (data) {
-        const newSchedule = DAYS.map((_, i) => {
-          const slot = data.find(
-            (a: { day_of_week: number }) => a.day_of_week === i
-          );
-          return slot
-            ? {
-                enabled: slot.is_active,
-                start: slot.start_time.slice(0, 5),
-                end: slot.end_time.slice(0, 5),
-              }
-            : { enabled: false, start: "08:00", end: "17:00" };
-        });
-        setSchedule(newSchedule);
-      }
+    // 1. If there's no record, stop loading and bail out safely
+    if (!doctorRecord?.id) {
       setLoading(false);
+      return;
+    }
+
+    const fetchAvailability = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("availability")
+          .select("*")
+          .eq("doctor_id", doctorRecord.id);
+
+        if (error) {
+          console.error("Error fetching schedule:", error);
+          return;
+        }
+
+        if (data) {
+          const newSchedule = DAYS.map((_, i) => {
+            const slot = data.find(
+              (a: { day_of_week: number }) => a.day_of_week === i
+            );
+            return slot
+              ? {
+                  enabled: slot.is_active,
+                  start: slot.start_time.slice(0, 5),
+                  end: slot.end_time.slice(0, 5),
+                }
+              : { enabled: false, start: "08:00", end: "17:00" };
+          });
+          setSchedule(newSchedule);
+        }
+      } finally {
+        // 2. Guarantee the spinner turns off whether fetch succeeds OR fails
+        setLoading(false);
+      }
     };
 
-    fetch();
-  }, [doctorRecord]);
+    fetchAvailability();
+    
+    // 3. Depend ONLY on the primitive ID, not the entire object reference
+  }, [doctorRecord?.id]);
 
   const updateDay = (
     index: number,
