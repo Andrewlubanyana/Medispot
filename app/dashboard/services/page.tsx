@@ -28,20 +28,38 @@ export default function ServicesPage() {
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
 
-  useEffect(() => {
-    if (doctorRecord) fetchServices();
-  }, [doctorRecord]);
-
   const fetchServices = async () => {
-    if (!doctorRecord) return;
-    const { data } = await supabase
-      .from("services")
-      .select("*")
-      .eq("doctor_id", doctorRecord.id)
-      .order("name");
-    setServices((data || []) as Service[]);
-    setLoading(false);
+    // 1. Safely turn off the spinner if there is no doctor ID
+    if (!doctorRecord?.id) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("services")
+        .select("*")
+        .eq("doctor_id", doctorRecord.id)
+        .order("name");
+        
+      if (error) {
+        console.error("Error fetching services:", error);
+        return;
+      }
+
+      setServices((data || []) as Service[]);
+    } finally {
+      // 2. Guarantee the spinner turns off whether fetch succeeds or fails
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    fetchServices();
+    // 3. Depend strictly on the primitive ID, not the object reference
+  }, [doctorRecord?.id]);
 
   const resetForm = () => {
     setName("");
