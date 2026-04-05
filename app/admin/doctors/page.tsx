@@ -44,22 +44,31 @@ export default function AdminDoctorsPage() {
   const fetchDoctors = async () => {
     setLoading(true);
 
-    let query = supabase
-      .from("doctors")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      let query = supabase
+        .from("doctors")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    if (filter === "pending") {
-      query = query.eq("is_approved", false);
-    } else if (filter === "approved") {
-      query = query.eq("is_approved", true);
-    } else if (filter === "premium") {
-      query = query.eq("is_premium", true);
+      if (filter === "pending") {
+        query = query.eq("is_approved", false);
+      } else if (filter === "approved") {
+        query = query.eq("is_approved", true);
+      } else if (filter === "premium") {
+        query = query.eq("is_premium", true);
+      }
+
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error("Error fetching doctors:", error);
+        return;
+      }
+      
+      setDoctors((data || []) as AdminDoctor[]);
+    } finally {
+      setLoading(false);
     }
-
-    const { data } = await query;
-    setDoctors((data || []) as AdminDoctor[]);
-    setLoading(false);
   };
 
   const updateDoctor = async (
@@ -67,12 +76,22 @@ export default function AdminDoctorsPage() {
     updates: Partial<AdminDoctor>
   ) => {
     setActionLoading(doctorId);
-    await supabase
-      .from("doctors")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", doctorId);
-    await fetchDoctors();
-    setActionLoading(null);
+    
+    try {
+      const { error } = await supabase
+        .from("doctors")
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq("id", doctorId);
+        
+      if (error) throw error;
+      
+      await fetchDoctors();
+    } catch (error: any) {
+      console.error("Error updating doctor:", error);
+      alert(`Failed to update doctor: ${error.message}`);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const deleteDoctor = async (doctorId: string, name: string) => {
@@ -85,15 +104,35 @@ export default function AdminDoctorsPage() {
 
     setActionLoading(doctorId);
 
-    // Delete related records first
-    await supabase.from("reviews").delete().eq("doctor_id", doctorId);
-    await supabase.from("bookings").delete().eq("doctor_id", doctorId);
-    await supabase.from("services").delete().eq("doctor_id", doctorId);
-    await supabase.from("availability").delete().eq("doctor_id", doctorId);
-    await supabase.from("doctors").delete().eq("id", doctorId);
+    try {
+      // Delete related records first
+      const { error: reviewsError } = await supabase.from("reviews").delete().eq("doctor_id", doctorId);
+      if (reviewsError) console.warn("Issue deleting reviews:", reviewsError);
+      
+      const { error: bookingsError } = await supabase.from("bookings").delete().eq("doctor_id", doctorId);
+      if (bookingsError) console.warn("Issue deleting bookings:", bookingsError);
+      
+      const { error: servicesError } = await supabase.from("services").delete().eq("doctor_id", doctorId);
+      if (servicesError) console.warn("Issue deleting services:", servicesError);
+      
+      const { error: availError } = await supabase.from("availability").delete().eq("doctor_id", doctorId);
+      if (availError) console.warn("Issue deleting availability:", availError);
+      
+      // Finally, delete the doctor
+      const { error: doctorError } = await supabase.from("doctors").delete().eq("id", doctorId);
+      
+      if (doctorError) {
+        throw doctorError;
+      }
 
-    await fetchDoctors();
-    setActionLoading(null);
+      await fetchDoctors();
+    } catch (error: any) {
+      console.error("Error deleting doctor:", error);
+      alert(`Failed to delete doctor: ${error.message}`);
+    } finally {
+      // GUARANTEE the specific doctor's loading spinner turns off!
+      setActionLoading(null);
+    }
   };
 
   return (
