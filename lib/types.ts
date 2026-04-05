@@ -7,6 +7,8 @@ export interface Review {
   comment: string | null;
   is_approved: boolean;
   created_at: string;
+  doctor_response: string | null;
+  response_date: string | null;
 }
 
 export interface Doctor {
@@ -35,8 +37,11 @@ export interface Doctor {
   slot_duration: number;
   created_at: string;
   updated_at: string;
-  reviews: Review[];
+  reviews?: Review[]; 
 }
+
+// Added this alias to fix your Vercel build error!
+export type DoctorRecord = Doctor;
 
 export interface DoctorWithRating extends Doctor {
   averageRating: number;
@@ -65,4 +70,20 @@ export interface Booking {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  cancellation_reason?: string | null;
+  cancelled_by?: "doctor" | "patient" | null;
+  cancelled_at?: string | null;
+  reschedule_requested?: boolean;
+  original_date?: string | null;
+  original_time?: string | null;
+}
+
+export interface Availability {
+  id: string;
+  doctor_id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  is_active: boolean;
+  created_at: string;
 }
