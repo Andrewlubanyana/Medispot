@@ -66,7 +66,6 @@ export default function DoctorRegistrationPage() {
 
       if (!session) {
         setError("Your session has expired. Please log in again.");
-        setLoading(false);
         router.push("/auth/login");
         return;
       }
@@ -121,16 +120,18 @@ export default function DoctorRegistrationPage() {
             `Failed to create your listing: ${insertError.message}`
           );
         }
-        setLoading(false);
-        return;
+        return; // The 'finally' block will handle the spinner
       }
 
       // Success — refresh doctor record and redirect
       await refreshDoctorRecord();
       router.push("/dashboard");
+      
     } catch (err) {
       console.error("Unexpected error:", err);
       setError("Something went wrong. Please try again.");
+    } finally {
+      // GUARANTEE the spinner turns off, even during soft routing!
       setLoading(false);
     }
   };
