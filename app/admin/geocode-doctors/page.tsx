@@ -12,54 +12,80 @@ export default function GeocodeDoctorsPage() {
     setProcessing(true);
     setResults(["Starting geocoding process..."]);
 
-    const { data: doctors } = await supabase
-      .from("doctors")
-      .select("id, full_name, practice_address, area")
-      .is("latitude", null);
+    try {
+      // 1. Explicitly check for an error on the initial fetch
+      const { data: doctors, error } = await supabase
+        .from("doctors")
+        .select("id, full_name, practice_address, area")
+        .is("latitude", null);
 
-    if (!doctors || doctors.length === 0) {
-      setResults((prev) => [...prev, "No doctors need geocoding."]);
-      setProcessing(false);
-      return;
-    }
+      if (error) {
+        throw new Error(`Database error: ${error.message}`);
+      }
 
-    setResults((prev) => [...prev, `Found ${doctors.length} doctors to geocode.`]);
+      if (!doctors || doctors.length === 0) {
+        setResults((prev) => [...prev, "No doctors need geocoding."]);
+        return; // The 'finally' block will still run and turn off the spinner
+      }
 
-    for (const doctor of doctors) {
-      try {
-        const address = `${doctor.practice_address}, ${doctor.area}, Durban, South Africa`;
+      setResults((prev) => [...prev, `Found ${doctors.length} doctors to geocode.`]);
 
-        const geocodeResponse = await fetch("/api/geocode", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address }),
-        });
+      for (const doctor of doctors) {
+        try {
+          const address = `${doctor.practice_address}, ${doctor.area}, Durban, South Africa`;
 
-        if (geocodeResponse.ok) {
-          const { latitude, longitude } = await geocodeResponse.json();
+          // 2. Add an AbortController to prevent the fetch from hanging forever
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-          await supabase
-            .from("doctors")
-            .update({ latitude, longitude })
-            .eq("id", doctor.id);
+          const geocodeResponse = await fetch("/api/geocode", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ address }),
+            signal: controller.signal,
+          });
 
-          setResults((prev) => [
-            ...prev,
-            `✓ ${doctor.full_name}: ${latitude}, ${longitude}`,
-          ]);
-        } else {
-          setResults((prev) => [...prev, `✗ ${doctor.full_name}: Failed`]);
+          clearTimeout(timeoutId); // Clear timeout if fetch succeeds quickly
+
+          if (geocodeResponse.ok) {
+            const { latitude, longitude } = await geocodeResponse.json();
+
+            // 3. Catch errors on the update step too
+            const { error: updateError } = await supabase
+              .from("doctors")
+              .update({ latitude, longitude })
+              .eq("id", doctor.id);
+
+            if (updateError) {
+              throw new Error("Update failed");
+            }
+
+            setResults((prev) => [
+              ...prev,
+              `✓ ${doctor.full_name}: ${latitude}, ${longitude}`,
+            ]);
+          } else {
+            setResults((prev) => [...prev, `✗ ${doctor.full_name}: API Failed`]);
+          }
+        } catch (err: any) {
+          // If it aborts due to timeout, it throws a specific error name
+          const errorMessage = err.name === 'AbortError' ? 'Timeout' : 'Error';
+          setResults((prev) => [...prev, `✗ ${doctor.full_name}: ${errorMessage}`]);
         }
 
-        // Rate limit: wait 200ms between requests
+        // Rate limit: wait 200ms between requests so we don't spam the API
         await new Promise((resolve) => setTimeout(resolve, 200));
-      } catch (err) {
-        setResults((prev) => [...prev, `✗ ${doctor.full_name}: Error`]);
       }
-    }
 
-    setResults((prev) => [...prev, "Geocoding complete!"]);
-    setProcessing(false);
+      setResults((prev) => [...prev, "Geocoding complete!"]);
+      
+    } catch (err: any) {
+      // Catch any fatal errors (like network failure on the initial load)
+      setResults((prev) => [...prev, `Critical Error: ${err.message}`]);
+    } finally {
+      // 4. GUARANTEE the spinner turns off, whether the whole process succeeds or crashes
+      setProcessing(false);
+    }
   };
 
   return (
@@ -88,9 +114,12 @@ export default function GeocodeDoctorsPage() {
       </button>
 
       {results.length > 0 && (
-        <div className="mt-6 bg-gray-50 rounded-xl p-4 max-h-96 overflow-y-auto">
+        <div className="mt-6 bg-gray-50 rounded-xl p-4 max-h-96 overflow-y-auto font-mono text-sm">
           {results.map((result, i) => (
-            <div key={i} className="text-sm text-gray-700 py-1 font-mono">
+            <div 
+              key={i} 
+              className={`py-1 ${result.includes('✗') || result.includes('Error') ? 'text-red-600' : 'text-gray-700'}`}
+            >
               {result}
             </div>
           ))}
