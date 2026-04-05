@@ -59,7 +59,11 @@ export default function Navbar() {
             </Link>
 
             {loading ? (
-              <div className="w-20 h-9 bg-gray-100 rounded-lg animate-pulse" />
+              // Improved Desktop Skeleton: Mimics Log In text and Sign Up button perfectly
+              <div className="flex items-center gap-6 ml-2">
+                <div className="w-12 h-5 bg-gray-100 rounded animate-pulse" />
+                <div className="w-20 h-9 bg-gray-200 rounded-lg animate-pulse" />
+              </div>
             ) : user ? (
               <>
                 {isDoctor && (
@@ -150,7 +154,13 @@ export default function Navbar() {
               For Doctors
             </Link>
 
-            {loading ? null : user ? (
+            {loading ? (
+              // Improved Mobile Skeleton: Mimics the mobile auth links
+              <div className="pt-2 space-y-2">
+                 <div className="w-full h-10 bg-gray-50 rounded-lg animate-pulse" />
+                 <div className="w-full h-10 bg-gray-100 rounded-lg animate-pulse" />
+              </div>
+            ) : user ? (
               <>
                 {isDoctor && (
                   <Link
