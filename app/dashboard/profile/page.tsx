@@ -43,36 +43,51 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
-    if (!doctorRecord) return;
+    // 1. Safely turn off the spinner if there is no doctor ID
+    if (!doctorRecord?.id) {
+      setLoading(false);
+      return;
+    }
 
     const fetchFull = async () => {
-      const { data } = await supabase
-        .from("doctors")
-        .select("*")
-        .eq("id", doctorRecord.id)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from("doctors")
+          .select("*")
+          .eq("id", doctorRecord.id)
+          .single();
 
-      if (data) {
-        setForm({
-          full_name: data.full_name || "",
-          specialty: data.specialty || "",
-          bio: data.bio || "",
-          qualifications: data.qualifications || "",
-          practice_name: data.practice_name || "",
-          practice_address: data.practice_address || "",
-          area: data.area || "",
-          phone: data.phone || "",
-          email: data.email || "",
-          website: data.website || "",
-          consultation_fee: data.consultation_fee?.toString() || "",
-        });
-        setPhotoUrl(data.photo_url || null);
+        if (error) {
+          console.error("Error fetching profile:", error);
+          return;
+        }
+
+        if (data) {
+          setForm({
+            full_name: data.full_name || "",
+            specialty: data.specialty || "",
+            bio: data.bio || "",
+            qualifications: data.qualifications || "",
+            practice_name: data.practice_name || "",
+            practice_address: data.practice_address || "",
+            area: data.area || "",
+            phone: data.phone || "",
+            email: data.email || "",
+            website: data.website || "",
+            consultation_fee: data.consultation_fee?.toString() || "",
+          });
+          setPhotoUrl(data.photo_url || null);
+        }
+      } finally {
+        // 2. Guarantee the spinner turns off whether fetch succeeds or fails
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchFull();
-  }, [doctorRecord]);
+    
+    // 3. Depend strictly on the primitive ID, not the object reference
+  }, [doctorRecord?.id]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
