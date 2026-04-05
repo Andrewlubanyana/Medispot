@@ -7,6 +7,21 @@ import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
 export default function GeocodeDoctorsPage() {
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState<string[]>([]);
+  
+  const geocodeAll = async () => {
+    setProcessing(true);
+    setResults(["Starting geocoding process..."]);
+    
+    console.log("1. Hitting Supabase...");
+
+    try {
+      const { data: doctors, error } = await supabase
+        .from("doctors")
+        .select("id, full_name, practice_address, area")
+        .is("latitude", null);
+        
+      console.log("2. Supabase finished! Doctors found:", doctors?.length);
+      // ... rest of the code
 
   const geocodeAll = async () => {
     setProcessing(true);
