@@ -42,7 +42,7 @@ export default function AnalyticsPage() {
       const cancelled = bookings.filter((b) => b.status === "cancelled").length;
       
       // Calculate estimated revenue using the doctor's base consultation fee
-      const fee = doctorRecord.consultation_fee || 0;
+      const fee = (doctorRecord as any).consultation_fee || 0;
       const estimatedRevenue = completed * fee;
 
       setStats({ total, completed, cancelled, estimatedRevenue });
