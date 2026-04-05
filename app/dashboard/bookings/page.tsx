@@ -19,36 +19,51 @@ export default function BookingsPage() {
   const [filter, setFilter] = useState<string>("upcoming");
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!doctorRecord) return;
-    fetchBookings();
-  }, [doctorRecord, filter]);
-
   const fetchBookings = async () => {
-    if (!doctorRecord) return;
+    // 1. Safely turn off the spinner if there is no doctor ID
+    if (!doctorRecord?.id) {
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
 
-    const today = new Date().toISOString().split("T")[0];
+    try {
+      const today = new Date().toISOString().split("T")[0];
 
-    let query = supabase
-      .from("bookings")
-      .select("*")
-      .eq("doctor_id", doctorRecord.id)
-      .order("booking_date", { ascending: filter === "upcoming" })
-      .order("booking_time");
+      let query = supabase
+        .from("bookings")
+        .select("*")
+        .eq("doctor_id", doctorRecord.id)
+        .order("booking_date", { ascending: filter === "upcoming" })
+        .order("booking_time");
 
-    if (filter === "upcoming") {
-      query = query.gte("booking_date", today).eq("status", "confirmed");
-    } else if (filter === "completed") {
-      query = query.eq("status", "completed");
-    } else if (filter === "cancelled") {
-      query = query.eq("status", "cancelled");
+      if (filter === "upcoming") {
+        query = query.gte("booking_date", today).eq("status", "confirmed");
+      } else if (filter === "completed") {
+        query = query.eq("status", "completed");
+      } else if (filter === "cancelled") {
+        query = query.eq("status", "cancelled");
+      }
+
+      const { data, error } = await query.limit(50);
+      
+      if (error) {
+        console.error("Error fetching bookings:", error);
+        return;
+      }
+      
+      setBookings((data || []) as Booking[]);
+    } finally {
+      // 2. Guarantee the spinner turns off whether fetch succeeds or fails
+      setLoading(false);
     }
-
-    const { data } = await query.limit(50);
-    setBookings((data || []) as Booking[]);
-    setLoading(false);
   };
+
+  useEffect(() => {
+    fetchBookings();
+    // 3. Depend strictly on the primitive ID, not the object reference
+  }, [doctorRecord?.id, filter]);
 
   const updateStatus = async (
     bookingId: string,
@@ -58,6 +73,8 @@ export default function BookingsPage() {
       .from("bookings")
       .update({ status, updated_at: new Date().toISOString() })
       .eq("id", bookingId);
+      
+    // Refresh the list after an update
     fetchBookings();
   };
 
