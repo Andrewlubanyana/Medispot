@@ -92,12 +92,12 @@ export default function PrivacyPolicy() {
           <p>We may update this Privacy Policy from time to time. The updated version will be indicated by an updated "Last Updated" date and the updated version will be effective as soon as it is accessible. We encourage you to review this Privacy Policy frequently to be informed of how we are protecting your information.</p>
 
           <h3>9. Contact Us</h3>
-          <p>If you have questions or comments about this policy, or if you wish to exercise your data privacy rights, you may contact our Information Officer at:</p>
+          <p>If you have questions or comments about this policy, or if you wish to exercise your data privacy rights, you may contact our Information Officer at: Info@medispot.co.za</p>
           
           <p>
               <strong>Medispot PTY LTD</strong><br />
-              Email: <a href="mailto:support@medispot.co.za">[Insert Support Email Address]</a><br />
-              Address: [Insert Physical Business Address]<br />
+              Email: <a href="mailto:hello@medispot.co.za">[info@medispot.co.za]</a><br />
+              <br />
               KwaZulu-Natal, South Africa
           </p>
         </div>
