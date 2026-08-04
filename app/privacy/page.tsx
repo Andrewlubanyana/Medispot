@@ -23,7 +23,7 @@ By accessing or using the App, you signify that you have read, understood, and a
 
 We collect personal information that you voluntarily provide to us when registering for the App, expressing an interest in obtaining information about us or our products and services, or otherwise interacting with the App.
 
-A. Personal Information Provided by You
+ <h2 className="text-xl font-bold text-gray-900 mt-6 mb-3">A. Personal Information Provided by You</h2>
 
 Account Registration: Name, email address, password, and account role (Patient or Healthcare Provider).
 
@@ -33,7 +33,7 @@ Healthcare Information: Appointment booking details, medical specialties require
 
 User Generated Content: Reviews, ratings, and feedback submitted by patients regarding healthcare providers.
 
-B. Information Collected Automatically
+<h2 className="text-xl font-bold text-gray-900 mt-6 mb-3">B. Information Collected Automatically</h2>
 
 Device Data: We may automatically collect device information (such as your mobile device ID, model, and operating system) for troubleshooting and app optimization.
 
