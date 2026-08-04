@@ -98,7 +98,7 @@ If you have questions or comments about this policy, or if you wish to exercise 
 
 Medispot PTY LTD
 
-Email: [Insert Support Email Address, e.g., support@medispot.co.za]</p>
+Email: [Hello@medispot.co.za]</p>
         </div>
       </div>
     </div>
