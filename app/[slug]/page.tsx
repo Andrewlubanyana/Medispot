@@ -108,7 +108,8 @@ export default async function SpecialistLocationPage({ params }: { params: { slu
   const parsed = parseSlug(params.slug);
   if (!parsed) notFound();
 
-  const { specialty, locationName } = parsed;
+  // Destructure specialtyKey directly from parsed
+  const { specialty, locationName, specialtyKey } = parsed;
 
   // Query Supabase for doctors matching specialty & location
   const { data: doctors } = await supabase
@@ -173,7 +174,7 @@ export default async function SpecialistLocationPage({ params }: { params: { slu
 
         <div className="max-w-5xl mx-auto px-6 pt-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* MAIN DOCTOR LISTINGS (2 Columns on Large Screens) */}
+          {/* MAIN DOCTOR LISTINGS */}
           <main className="lg:col-span-2 space-y-6">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">
@@ -264,7 +265,7 @@ export default async function SpecialistLocationPage({ params }: { params: { slu
             </div>
           </main>
 
-          {/* SIDEBAR: SEO CONTENT & WHEN TO SEE A DOCTOR */}
+          {/* SIDEBAR */}
           <aside className="space-y-6">
             <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 space-y-4">
               <h3 className="font-bold text-slate-900 dark:text-white text-base border-b border-slate-100 dark:border-slate-800 pb-2">
@@ -296,7 +297,7 @@ export default async function SpecialistLocationPage({ params }: { params: { slu
                 {Object.keys(LOCATIONS_MAP).slice(0, 8).map((loc) => (
                   <Link
                     key={loc}
-                    href={`/${specialty.specialtyKey}-${loc}`}
+                    href={`/${specialtyKey}-${loc}`}
                     className="text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950 hover:text-teal-700 transition-colors"
                   >
                     {specialty.name} {LOCATIONS_MAP[loc]}
