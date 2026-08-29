@@ -1,38 +1,30 @@
 import { MetadataRoute } from "next";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+);
 
 const SPECIALTIES = [
-  "general-practitioner",
-  "dentist",
-  "pediatrician",
-  "dermatologist",
-  "cardiologist",
-  "gynecologist",
-  "ent-specialist",
+  "general-practitioner", "dentist", "pediatrician", 
+  "dermatologist", "cardiologist", "gynecologist", "ent-specialist"
 ];
 
-const LOCATIONS = [
-  "durban-cbd",
-  "durban",
-  "umhlanga",
-  "ballito",
-  "pinetown",
-  "westville",
-  "amanzimtoti",
-  "scottburgh",
-  "port-shepstone",
-  "shelly-beach",
-  "margate",
-  "hillcrest",
-  "kloof",
-  "pietermaritzburg",
-];
-
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://medispot.co.za";
 
+  // Fetch all unique areas currently present in the Supabase database
+  const { data: doctors } = await supabase.from("doctors").select("area");
+  
+  // Extract and clean distinct areas into slug format (e.g. "Richards Bay" -> "richards-bay")
+  const customAreas = Array.from(
+    new Set(doctors?.map((d) => d.area?.toLowerCase().replace(/\s+/g, "-")).filter(Boolean))
+  );
+
   const pSeoUrls = SPECIALTIES.flatMap((specialty) =>
-    LOCATIONS.map((location) => ({
-      url: `${baseUrl}/${specialty}-${location}`,
+    customAreas.map((locationSlug) => ({
+      url: `${baseUrl}/${specialty}-${locationSlug}`,
       lastModified: new Date(),
       changeFrequency: "weekly" as const,
       priority: 0.8,
