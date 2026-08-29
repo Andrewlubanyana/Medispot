@@ -1,67 +1,129 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Mail,
-  Lock,
-  User,
+  MapPin,
+  Stethoscope,
+  Building2,
+  DollarSign,
   Loader2,
   AlertCircle,
   Plus,
-  Stethoscope,
-  Heart,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
-import { Suspense } from "react";
+import { createClient } from "@supabase/supabase-js";
 
-function RegisterForm() {
+// Initialize Supabase Client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+const PREDEFINED_AREAS = [
+  "Durban CBD",
+  "Durban",
+  "Umhlanga",
+  "Ballito",
+  "Pinetown",
+  "Westville",
+  "Amanzimtoti",
+  "Scottburgh",
+  "Port Shepstone",
+  "Shelly Beach",
+  "Margate",
+  "Hillcrest",
+  "Kloof",
+  "Pietermaritzburg",
+];
+
+const SPECIALTIES = [
+  "General Practitioner",
+  "Dentist",
+  "Pediatrician",
+  "Dermatologist",
+  "Cardiologist",
+  "Gynecologist",
+  "ENT Specialist",
+  "Other",
+];
+
+export default function DoctorDetailsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { signUp } = useAuth();
+  const { user } = useAuth();
 
-  const initialRole = searchParams.get("role") || "";
-
-  const [role, setRole] = useState<string>(initialRole);
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [specialty, setSpecialty] = useState("");
+  const [practiceName, setPracticeName] = useState("");
+  const [selectedArea, setSelectedArea] = useState("");
+  const [customArea, setCustomArea] = useState("");
+  const [isCustomArea, setIsCustomArea] = useState(false);
+  const [consultationFee, setConsultationFee] = useState("");
+  
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const handleAreaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (val === "OTHER") {
+      setIsCustomArea(true);
+      setSelectedArea("");
+    } else {
+      setIsCustomArea(false);
+      setSelectedArea(val);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!role) {
-      setError("Please select whether you are a patient or a doctor.");
+
+    const finalArea = isCustomArea ? customArea.trim() : selectedArea;
+
+    if (!specialty) {
+      setError("Please select your medical specialty.");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (!finalArea) {
+      setError("Please select or enter your practice area.");
       return;
     }
 
     setError("");
     setLoading(true);
 
-    const { error } = await signUp(email, password, fullName, role);
+    try {
+      // 1. Get logged in user ID
+      const userId = user?.id;
 
-    if (error) {
-      setError(error);
+      if (!userId) {
+        setError("User session not found. Please log in again.");
+        setLoading(false);
+        return;
+      }
+
+      // 2. Insert or update doctor profile in Supabase
+      const { error: dbError } = await supabase.from("doctors").upsert({
+        id: userId,
+        full_name: user?.user_metadata?.full_name || "",
+        email: user?.email || "",
+        specialty,
+        practice_name: practiceName || `${specialty} Practice`,
+        area: finalArea,
+        consultation_fee: consultationFee ? parseFloat(consultationFee) : null,
+      });
+
+      if (dbError) throw dbError;
+
+      // 3. Redirect to doctor dashboard
+      router.push("/doctor/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Failed to save practice details.");
       setLoading(false);
-      return;
-    }
-
-    if (role === "doctor") {
-      router.push("/auth/register/doctor");
-    } else {
-      router.push("/doctors");
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-lg">
         {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
@@ -74,127 +136,125 @@ function RegisterForm() {
           </Link>
         </div>
 
-        <div className="card p-8">
+        <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
           <h1 className="text-2xl font-bold text-gray-900 text-center mb-2">
-            Create your account
+            Practice Details
           </h1>
-          <p className="text-gray-500 text-center mb-6">
-            Join MediSpot today
+          <p className="text-gray-500 text-center mb-6 text-sm">
+            Help patients in your area find and book appointments with you
           </p>
 
-          {/* Role selection */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            <button
-              type="button"
-              onClick={() => setRole("patient")}
-              className={`p-4 rounded-xl border-2 text-center transition-all ${
-                role === "patient"
-                  ? "border-teal-500 bg-teal-50"
-                  : "border-gray-200 hover:border-gray-300"
-              }`}
-            >
-              <Heart
-                className={`h-6 w-6 mx-auto mb-2 ${
-                  role === "patient" ? "text-teal-600" : "text-gray-400"
-                }`}
-              />
-              <span
-                className={`text-sm font-semibold ${
-                  role === "patient" ? "text-teal-700" : "text-gray-600"
-                }`}
-              >
-                I&apos;m a Patient
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setRole("doctor")}
-              className={`p-4 rounded-xl border-2 text-center transition-all ${
-                role === "doctor"
-                  ? "border-teal-500 bg-teal-50"
-                  : "border-gray-200 hover:border-gray-300"
-              }`}
-            >
-              <Stethoscope
-                className={`h-6 w-6 mx-auto mb-2 ${
-                  role === "doctor" ? "text-teal-600" : "text-gray-400"
-                }`}
-              />
-              <span
-                className={`text-sm font-semibold ${
-                  role === "doctor" ? "text-teal-700" : "text-gray-600"
-                }`}
-              >
-                I&apos;m a Doctor
-              </span>
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* SPECIALTY */}
             <div>
-              <label
-                htmlFor="name"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Full Name
+              <label htmlFor="specialty" className="block text-sm font-medium text-gray-700 mb-1">
+                Medical Specialty *
               </label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Stethoscope className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                <select
+                  id="specialty"
+                  required
+                  value={specialty}
+                  onChange={(e) => setSpecialty(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900"
+                >
+                  <option value="" disabled>Select specialty...</option>
+                  {SPECIALTIES.map((spec) => (
+                    <option key={spec} value={spec}>{spec}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* PRACTICE NAME */}
+            <div>
+              <label htmlFor="practiceName" className="block text-sm font-medium text-gray-700 mb-1">
+                Practice / Clinic Name (Optional)
+              </label>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
-                  id="name"
+                  id="practiceName"
                   type="text"
-                  required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-gray-900"
-                  placeholder="Your full name"
+                  value={practiceName}
+                  onChange={(e) => setPracticeName(e.target.value)}
+                  placeholder="e.g. Umhlanga Medical Centre"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900"
                 />
               </div>
             </div>
 
+            {/* LOCATION / AREA SELECTOR */}
             <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Email
+              <label htmlFor="area" className="block text-sm font-medium text-gray-700 mb-1">
+                Practice Location / Area *
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-gray-900"
-                  placeholder="you@example.com"
-                />
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                <select
+                  id="area"
+                  required={!isCustomArea}
+                  value={isCustomArea ? "OTHER" : selectedArea}
+                  onChange={handleAreaChange}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900"
+                >
+                  <option value="" disabled>Select location / suburb...</option>
+                  {PREDEFINED_AREAS.map((area) => (
+                    <option key={area} value={area}>{area}</option>
+                  ))}
+                  <option value="OTHER" className="font-semibold text-teal-600">
+                    ➕ Other (Add Custom Location)
+                  </option>
+                </select>
               </div>
             </div>
 
+            {/* CUSTOM LOCATION INPUT FIELD */}
+            {isCustomArea && (
+              <div className="p-4 bg-teal-50/60 rounded-xl border border-teal-200 space-y-2 animate-in fade-in">
+                <label htmlFor="customArea" className="block text-xs font-bold text-teal-800">
+                  Enter Your Suburb, Town, or City *
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-teal-600" />
+                  <input
+                    id="customArea"
+                    type="text"
+                    required
+                    value={customArea}
+                    onChange={(e) => setCustomArea(e.target.value)}
+                    placeholder="e.g. Richards Bay, Eshowe, Kokstad..."
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-teal-300 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900 text-sm"
+                  />
+                </div>
+                <p className="text-[11px] text-teal-700">
+                  💡 This location will automatically generate a dedicated search page for your patients on MediSpot.
+                </p>
+              </div>
+            )}
+
+            {/* CONSULTATION FEE */}
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Password
+              <label htmlFor="fee" className="block text-sm font-medium text-gray-700 mb-1">
+                Consultation Fee (ZAR R)
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
-                  id="password"
-                  type="password"
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-gray-900"
-                  placeholder="At least 6 characters"
+                  id="fee"
+                  type="number"
+                  min="0"
+                  step="50"
+                  value={consultationFee}
+                  onChange={(e) => setConsultationFee(e.target.value)}
+                  placeholder="e.g. 650"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-900"
                 />
               </div>
             </div>
 
+            {/* ERROR ALERT */}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
                 <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
@@ -202,43 +262,24 @@ function RegisterForm() {
               </div>
             )}
 
+            {/* SUBMIT BUTTON */}
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full flex items-center justify-center gap-2"
+              className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm"
             >
               {loading ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  Creating account...
+                  Saving practice details...
                 </>
-              ) : role === "doctor" ? (
-                "Continue → Practice Details"
               ) : (
-                "Create Account"
+                "Complete Setup & Launch Practice"
               )}
             </button>
           </form>
-
-          <p className="text-center text-sm text-gray-500 mt-6">
-            Already have an account?{" "}
-            <Link
-              href="/auth/login"
-              className="text-teal-600 font-semibold hover:text-teal-700"
-            >
-              Log in
-            </Link>
-          </p>
         </div>
       </div>
     </div>
-  );
-}
-
-export default function RegisterPage() {
-  return (
-    <Suspense>
-      <RegisterForm />
-    </Suspense>
   );
 }
