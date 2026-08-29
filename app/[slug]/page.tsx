@@ -64,19 +64,28 @@ const LOCATIONS_MAP: Record<string, string> = {
   "pietermaritzburg": "Pietermaritzburg",
 };
 
-// --- SLUG PARSER HELPER ---
+// --- DYNAMIC SLUG PARSER (Supports default AND custom user locations) ---
 function parseSlug(slug: string) {
-  for (const locSlug of Object.keys(LOCATIONS_MAP)) {
-    if (slug.endsWith(`-${locSlug}`)) {
-      const specSlug = slug.replace(`-${locSlug}`, "");
-      if (SPECIALTIES_MAP[specSlug]) {
-        return {
-          specialtyKey: specSlug,
-          specialty: SPECIALTIES_MAP[specSlug],
-          locationName: LOCATIONS_MAP[locSlug],
-          locationKey: locSlug,
-        };
-      }
+  // 1. Find which specialty the slug starts with
+  for (const specKey of Object.keys(SPECIALTIES_MAP)) {
+    const prefix = `${specKey}-`;
+    
+    if (slug.startsWith(prefix)) {
+      const locSlug = slug.slice(prefix.length); // Extracts e.g. "richards-bay" or "eshowe"
+      if (!locSlug) return null;
+
+      // 2. Check if it's in our predefined map; if not, format "richards-bay" -> "Richards Bay"
+      const locationName = LOCATIONS_MAP[locSlug] || locSlug
+        .split("-")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+
+      return {
+        specialtyKey: specKey,
+        specialty: SPECIALTIES_MAP[specKey],
+        locationName,
+        locationKey: locSlug,
+      };
     }
   }
   return null;
